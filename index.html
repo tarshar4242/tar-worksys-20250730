@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日作業員工時明細表產生器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+        }
+        .upload-area {
+            border: 2px dashed #3498db;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            background: #e9ecef;
+            border-color: #2980b9;
+        }
+        .upload-area.dragover {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .upload-btn, .process-btn, .download-btn {
+            background: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .upload-btn:hover, .process-btn:hover, .download-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        .process-btn {
+            background: #27ae60;
+            width: 100%;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 15px 30px;
+        }
+        .process-btn:hover {
+            background: #229954;
+        }
+        .process-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .download-btn {
+            background: #e74c3c;
+        }
+        .download-btn:hover {
+            background: #c0392b;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .stat-label {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .sample-data {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f1f2f6;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #27ae60;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .warning-icon {
+            color: #e74c3c;
+            font-weight: bold;
+            margin-right: 5px;
+            font-size: 1.2em;
+        }
+        .abnormal-row {
+            background-color: #fff5f5;
+        }
+        .hours-cell {
+            font-weight: bold;
+        }
+        .abnormal-hours {
+            color: #e74c3c;
+        }
+        .normal-hours {
+            color: #27ae60;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .csv-output {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 每日作業員工時明細表產生器</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <h3>📁 請選擇或拖拽 MES 工單人員記錄表檔案</h3>
+            <p>支援格式: Excel (.xlsx, .xls)</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                選擇檔案
+            </button>
+            <div id="fileName" style="margin-top: 15px; font-weight: bold; color: #2c3e50;"></div>
+        </div>
+
+        <button class="process-btn" id="processBtn" onclick="processFile()" disabled>
+            🔄 開始處理並產生報表
+        </button>
+
+        <div id="filterArea" class="results" style="display: none;">
+            <h3>🔍 篩選條件</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <label for="dateSelect">選擇日期：</label>
+                    <select id="dateSelect">
+                        <option value="">全部日期</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="factorySelect">選擇廠別：</label>
+                    <select id="factorySelect">
+                        <option value="">全部廠別</option>
+                    </select>
+                </div>
+            </div>
+            <button class="process-btn" onclick="applyFilters()" style="background: #f39c12;">
+                📋 套用篩選並顯示結果
+            </button>
+        </div>
+
+        <div id="results" class="results" style="display: none;">
+            <h3>📈 篩選結果</h3>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let allProcessedData = null;
+        let processedData = null;
+
+        // 檔案拖拽處理
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadArea.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            uploadArea.classList.remove('dragover');
+        }
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                document.getElementById('fileName').textContent = `已選擇: ${file.name}`;
+                document.getElementById('processBtn').disabled = false;
+                window.selectedFile = file;
+            }
+        }
+
+        async function processFile() {
+            if (!window.selectedFile) {
+                alert('請先選擇檔案');
+                return;
+            }
+
+            const filterArea = document.getElementById('filterArea');
+            filterArea.style.display = 'block';
+            
+            filterArea.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在處理資料，請稍候...</p>
+                </div>
+            `;
+
+            try {
+                const arrayBuffer = await window.selectedFile.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const originalWorkbook = XLSX.read(data, { type: 'array' });
+                
+                const firstSheetName = originalWorkbook.SheetNames[0];
+                const worksheet = originalWorkbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                const headers = jsonData[0];
+                const records = jsonData.slice(1).filter(row => row[3] && row[8] && row[9]);
+                
+                const dailyStats = {};
+
+                records.forEach(row => {
+                    const employeeName = row[3];
+                    const workOrderNo = row[5];
+                    const startTime = row[8];
+                    const endTime = row[9];
+                    
+                    let factory = '其他';
+                    if (workOrderNo) {
+                        const prefix = workOrderNo.toString().substring(0, 4);
+                        switch(prefix) {
+                            case 'GE11': factory = '宗瑋廠_成型'; break;
+                            case 'DE11': factory = '博士廠_成型'; break;
+                            case 'GE31': factory = '宗瑋廠_組裝'; break;
+                            case 'DE31': factory = '博士廠_組裝'; break;
+                        }
+                    }
+                    
+                    const workDate = new Date(startTime).toLocaleDateString('zh-TW');
+                    const key = `${employeeName}_${workDate}_${factory}`;
+                    
+                    if (!dailyStats[key]) {
+                        dailyStats[key] = {
+                            員工姓名: employeeName,
+                            廠別: factory,
+                            工作日期: workDate,
+                            開始時間: startTime,
+                            結束時間: endTime
+                        };
+                    } else {
+                        if (new Date(startTime) < new Date(dailyStats[key].開始時間)) {
+                            dailyStats[key].開始時間 = startTime;
+                        }
+                        if (new Date(endTime) > new Date(dailyStats[key].結束時間)) {
+                            dailyStats[key].結束時間 = endTime;
+                        }
+                    }
+                });
+
+                const results = [];
+                Object.values(dailyStats).forEach(stat => {
+                    const start = new Date(stat.開始時間);
+                    const end = new Date(stat.結束時間);
+                    const hoursDiff = (end - start) / (1000 * 60 * 60);
+                    
+                    const startTimeStr = start.toLocaleTimeString('zh-TW', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        hour12: false 
+                    });
+                    const endTimeStr = end.toLocaleTimeString('zh-TW', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        hour12: false 
+                    });
+                    
+                    const hours = Math.floor(hoursDiff);
+                    const minutes = Math.round((hoursDiff % 1) * 60);
+                    const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    
+                    const isAbnormal = hoursDiff < 8 || hoursDiff > 13;
+                    
+                    results.push({
+                        日期: stat.工作日期,
+                        廠別: stat.廠別,
+                        員工姓名: stat.員工姓名,
+                        開始時間: startTimeStr,
+                        結束時間: endTimeStr,
+                        工作時數: durationStr,
+                        工時數值: hoursDiff,
+                        異常狀況: isAbnormal
+                    });
+                });
+
+                allProcessedData = results;
+                setupFilters(results);
+                
+            } catch (error) {
+                filterArea.innerHTML = `<div class="error">❌ 處理檔案時發生錯誤: ${error.message}</div>`;
+                console.error('處理錯誤:', error);
+            }
+        }
+
+        function setupFilters(data) {
+            const uniqueDates = [...new Set(data.map(item => item.日期))].sort();
+            const uniqueFactories = [...new Set(data.map(item => item.廠別))].sort();
+            
+            const filterArea = document.getElementById('filterArea');
+            filterArea.innerHTML = `
+                <h3>🔍 篩選條件</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <label for="dateSelect">選擇日期：</label>
+                        <select id="dateSelect">
+                            <option value="">全部日期</option>
+                            ${uniqueDates.map(date => `<option value="${date}">${date}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="factorySelect">選擇廠別：</label>
+                        <select id="factorySelect">
+                            <option value="">全部廠別</option>
+                            ${uniqueFactories.map(factory => `<option value="${factory}">${factory}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <button class="process-btn" onclick="applyFilters()" style="background: #f39c12;">
+                    📋 套用篩選並顯示結果
+                </button>
+            `;
+        }
+
+        function applyFilters() {
+            if (!allProcessedData) {
+                alert('請先處理檔案');
+                return;
+            }
+
+            const selectedDate = document.getElementById('dateSelect').value;
+            const selectedFactory = document.getElementById('factorySelect').value;
+            
+            let filteredData = allProcessedData;
+            
+            if (selectedDate) {
+                filteredData = filteredData.filter(item => item.日期 === selectedDate);
+            }
+            
+            if (selectedFactory) {
+                filteredData = filteredData.filter(item => item.廠別 === selectedFactory);
+            }
+            
+            filteredData.sort((a, b) => {
+                if (a.異常狀況 !== b.異常狀況) {
+                    return b.異常狀況 ? 1 : -1;
+                }
+                if (a.日期 !== b.日期) return a.日期.localeCompare(b.日期);
+                if (a.廠別 !== b.廠別) return a.廠別.localeCompare(b.廠別);
+                return a.工時數值 - b.工時數值;
+            });
+            
+            displayFilteredResults(filteredData, selectedDate, selectedFactory);
+        }
+
+        function displayFilteredResults(filteredData, selectedDate, selectedFactory) {
+            const resultsDiv = document.getElementById('results');
+            const resultsContent = document.getElementById('resultsContent');
+            resultsDiv.style.display = 'block';
+            
+            const totalRecords = filteredData.length;
+            const uniqueEmployees = [...new Set(filteredData.map(item => item.員工姓名))].length;
+            const factories = [...new Set(filteredData.map(item => item.廠別))];
+            const abnormalRecords = filteredData.filter(item => item.異常狀況).length;
+            
+            let filterInfo = '';
+            if (selectedDate || selectedFactory) {
+                filterInfo = `
+                    <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                        <strong>📋 目前篩選條件：</strong>
+                        ${selectedDate ? `日期: ${selectedDate}` : ''}
+                        ${selectedDate && selectedFactory ? ' | ' : ''}
+                        ${selectedFactory ? `廠別: ${selectedFactory}` : ''}
+                        ${!selectedDate && !selectedFactory ? '顯示全部資料' : ''}
+                    </div>
+                `;
+            }
+            
+            let abnormalWarning = '';
+            if (abnormalRecords > 0) {
+                abnormalWarning = `
+                    <div style="background: #fff5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e74c3c;">
+                        <strong>⚠️ 異常工時提醒：</strong>
+                        發現 ${abnormalRecords} 筆異常工時記錄（工時<8小時 或 >13小時），已標示紅色警示並優先顯示
+                    </div>
+                `;
+            }
+            
+            const statsHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${totalRecords}</div>
+                        <div class="stat-label">篩選後記錄數</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${uniqueEmployees}</div>
+                        <div class="stat-label">員工人數</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${factories.length}</div>
+                        <div class="stat-label">涉及廠別數</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: ${abnormalRecords > 0 ? '#e74c3c' : '#27ae60'}">${abnormalRecords}</div>
+                        <div class="stat-label">異常工時記錄</div>
+                    </div>
+                </div>
+            `;
+            
+            let tableHTML = `
+                <div class="sample-data">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h4>📊 工時明細表</h4>
+                        <span style="color: #7f8c8d;">共 ${totalRecords} 筆記錄 ${abnormalRecords > 0 ? `(${abnormalRecords} 筆異常)` : ''}</span>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">狀態</th>
+                                    <th>日期</th>
+                                    <th>廠別</th>
+                                    <th>員工姓名</th>
+                                    <th>開始時間</th>
+                                    <th>結束時間</th>
+                                    <th>工作時數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            filteredData.forEach(item => {
+                const rowClass = item.異常狀況 ? 'abnormal-row' : '';
+                const hoursClass = item.異常狀況 ? 'abnormal-hours' : 'normal-hours';
+                const statusIcon = item.異常狀況 ? '<span class="warning-icon">⚠️</span>' : '';
+                
+                tableHTML += `
+                    <tr class="${rowClass}">
+                        <td style="text-align: center; width: 50px;">${statusIcon}</td>
+                        <td>${item.日期}</td>
+                        <td>${item.廠別}</td>
+                        <td>${item.員工姓名}</td>
+                        <td>${item.開始時間}</td>
+                        <td>${item.結束時間}</td>
+                        <td class="hours-cell ${hoursClass}">${statusIcon}${item.工作時數}</td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-size: 14px;">
+                        <strong>📋 說明：</strong>
+                        <span style="color: #e74c3c;">⚠️ 異常工時</span>（<8小時 或 >13小時）會在工作時數前顯示警示圖示 |
+                        排序：異常優先 → 日期 → 廠別 → 工時少到多
+                    </div>
+                </div>
+            `;
+
+            // 產生CSV格式的資料顯示
+            let csvData = '狀態,日期,廠別,員工姓名,開始時間,結束時間,工作時數,異常說明\n';
+            filteredData.forEach(item => {
+                const status = item.異常狀況 ? '異常' : '正常';
+                let abnormalNote = '';
+                if (item.異常狀況) {
+                    if (item.工時數值 < 8) {
+                        abnormalNote = '工時不足8小時';
+                    } else if (item.工時數值 > 13) {
+                        abnormalNote = '工時超過13小時';
+                    }
+                }
+                
+                csvData += `${status},${item.日期},${item.廠別},${item.員工姓名},${item.開始時間},${item.結束時間},${item.工作時數},${abnormalNote}\n`;
+            });
+            
+            resultsContent.innerHTML = `
+                ${filterInfo}
+                ${abnormalWarning}
+                ${statsHTML}
+                ${tableHTML}
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="download-btn" onclick="downloadCSV()">
+                        📥 下載 CSV 檔案
+                    </button>
+                    <button class="download-btn" onclick="copyToClipboard()" style="background: #9b59b6;">
+                        📋 複製到剪貼簿
+                    </button>
+                </div>
+                <div class="sample-data">
+                    <h4>📄 CSV 資料預覽 (可直接複製貼到Excel)</h4>
+                    <div class="csv-output" id="csvOutput">${csvData}</div>
+                </div>
+            `;
+            
+            processedData = filteredData;
+            window.csvData = csvData;
+        }
+
+        function downloadCSV() {
+            if (!window.csvData) {
+                alert('沒有資料可下載');
+                return;
+            }
+            
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-TW').replace(/\//g, '');
+            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false }).replace(/:/g, '');
+            const filename = `每日作業員工時明細表_${dateStr}_${timeStr}.csv`;
+            
+            // 加入BOM以支援中文
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + window.csvData], { type: 'text/csv;charset=utf-8;' });
+            
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showSuccessMessage(`✅ CSV檔案已下載: ${filename}`);
+            }
+        }
+        
+        function copyToClipboard() {
+            if (!window.csvData) {
+                alert('沒有資料可複製');
+                return;
+            }
+            
+            navigator.clipboard.writeText(window.csvData).then(function() {
+                showSuccessMessage('✅ 資料已複製到剪貼簿，可直接貼到Excel中');
+            }, function(err) {
+                // 備用方法
+                const textArea = document.createElement('textarea');
+                textArea.value = window.csvData;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showSuccessMessage('✅ 資料已複製到剪貼簿，可直接貼到Excel中');
+            });
+        }
+        
+        function showSuccessMessage(message) {
+            const successMsg = document.createElement('div');
+            successMsg.className = 'success';
+            successMsg.innerHTML = message;
+            document.getElementById('resultsContent').insertBefore(successMsg, document.getElementById('resultsContent').firstChild);
+            setTimeout(() => successMsg.remove(), 5000);
+        }
+    </script>
+</body>
+</html>
