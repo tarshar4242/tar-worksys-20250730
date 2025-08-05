@@ -416,6 +416,8 @@
                 records.forEach(row => {
                     const dateValue = row[0]; // 日期欄位
                     const employeeName = row[2]; // 員工姓名
+                    const equipmentCode = row[4]; // 設備代碼
+                    const equipmentName = row[5]; // 設備名稱
                     const workOrderNo = row[6]; // 工單單號
                     const startTime = row[10]; // 開始生產時間
                     const endTime = row[11]; // 結束生產時間
@@ -429,6 +431,16 @@
                             case 'GE31': factory = '宗瑋廠_組裝'; break;
                             case 'DE31': factory = '博士廠_組裝'; break;
                         }
+                    }
+                    
+                    // 處理設備資訊
+                    let equipment = '';
+                    if (equipmentCode && equipmentName) {
+                        equipment = `${equipmentCode}-${equipmentName}`;
+                    } else if (equipmentCode) {
+                        equipment = equipmentCode;
+                    } else if (equipmentName) {
+                        equipment = equipmentName;
                     }
                     
                     // 使用日期欄位的值，如果是字串格式則直接使用，否則從開始時間提取日期
@@ -448,7 +460,8 @@
                             廠別: factory,
                             工作日期: workDate,
                             開始時間: startTime,
-                            結束時間: endTime
+                            結束時間: endTime,
+                            設備: equipment ? [equipment] : []
                         };
                     } else {
                         if (new Date(startTime) < new Date(dailyStats[key].開始時間)) {
@@ -456,6 +469,10 @@
                         }
                         if (new Date(endTime) > new Date(dailyStats[key].結束時間)) {
                             dailyStats[key].結束時間 = endTime;
+                        }
+                        // 收集設備資訊，避免重複
+                        if (equipment && !dailyStats[key].設備.includes(equipment)) {
+                            dailyStats[key].設備.push(equipment);
                         }
                     }
                 });
@@ -477,15 +494,20 @@
                         hour12: false 
                     });
                     
-                    const hours = Math.floor(hoursDiff);
-                    const minutes = Math.round((hoursDiff % 1) * 60);
+                    const totalMinutes = Math.round(hoursDiff * 60);
+                    const hours = Math.floor(totalMinutes / 60);
+                    const minutes = totalMinutes % 60;
                     const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                     
                     const isAbnormal = hoursDiff < 8 || hoursDiff > 13;
                     
+                    // 將設備陣列轉換為分號分隔的字串
+                    const equipmentStr = stat.設備.join(';');
+                    
                     results.push({
                         日期: stat.工作日期,
                         廠別: stat.廠別,
+                        設備: equipmentStr,
                         員工姓名: stat.員工姓名,
                         開始時間: startTimeStr,
                         結束時間: endTimeStr,
@@ -609,6 +631,7 @@
                             <tr>
                                 <th>日期</th>
                                 <th>廠別</th>
+                                <th>設備</th>
                                 <th>員工姓名</th>
                                 <th>開始時間</th>
                                 <th>結束時間</th>
@@ -628,6 +651,7 @@
                     <tr class="${rowClass}">
                         <td>${item.日期}</td>
                         <td>${item.廠別}</td>
+                        <td>${item.設備}</td>
                         <td>${item.員工姓名}</td>
                         <td>${item.開始時間}</td>
                         <td>${item.結束時間}</td>
@@ -659,12 +683,13 @@
                 return;
             }
 
-            const headers = ['日期', '廠別', '員工姓名', '開始時間', '結束時間', '工作期間', '異常狀況'];
+            const headers = ['日期', '廠別', '設備', '員工姓名', '開始時間', '結束時間', '工作期間', '異常狀況'];
             const csvContent = [
                 headers.join(','),
                 ...processedData.map(row => [
                     row.日期,
                     row.廠別,
+                    row.設備,
                     row.員工姓名,
                     row.開始時間,
                     row.結束時間,
@@ -690,4 +715,3 @@
     </script>
 </body>
 </html>
-
