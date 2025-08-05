@@ -433,14 +433,10 @@
                         }
                     }
                     
-                    // 處理設備資訊
+                    // 處理設備資訊 - 只顯示設備代碼
                     let equipment = '';
-                    if (equipmentCode && equipmentName) {
-                        equipment = `${equipmentCode}-${equipmentName}`;
-                    } else if (equipmentCode) {
+                    if (equipmentCode) {
                         equipment = equipmentCode;
-                    } else if (equipmentName) {
-                        equipment = equipmentName;
                     }
                     
                     // 使用日期欄位的值，如果是字串格式則直接使用，否則從開始時間提取日期
