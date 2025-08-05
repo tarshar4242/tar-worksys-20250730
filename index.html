@@ -17,23 +17,26 @@
         .container {
             background: white;
             border-radius: 15px;
-            padding: 30px;
+            padding: 25px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            line-height: 1.4;
         }
         h1 {
             color: #2c3e50;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             font-size: 2.2em;
+            line-height: 1.3;
         }
         .upload-area {
             border: 2px dashed #3498db;
             border-radius: 10px;
-            padding: 40px;
+            padding: 32px;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             background: #f8f9fa;
             transition: all 0.3s ease;
+            line-height: 1.4;
         }
         .upload-area:hover {
             background: #e9ecef;
@@ -66,7 +69,8 @@
             width: 100%;
             font-size: 18px;
             font-weight: bold;
-            padding: 15px 30px;
+            padding: 12px 25px;
+            margin: 16px 0;
         }
         .process-btn:hover {
             background: #229954;
@@ -83,24 +87,26 @@
             background: #c0392b;
         }
         .results {
-            margin-top: 30px;
-            padding: 20px;
+            margin-top: 25px;
+            padding: 18px;
             background: #f8f9fa;
             border-radius: 10px;
             border-left: 5px solid #3498db;
+            line-height: 1.4;
         }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
+            gap: 15px;
+            margin: 16px 0;
         }
         .stat-card {
             background: white;
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
+            line-height: 1.2;
         }
         .stat-number {
             font-size: 2em;
@@ -114,9 +120,10 @@
         .sample-data {
             background: white;
             border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
+            padding: 16px;
+            margin-top: 16px;
             overflow-x: auto;
+            line-height: 1.3;
         }
         table {
             width: 100%;
@@ -124,9 +131,10 @@
             margin-top: 10px;
         }
         th, td {
-            padding: 10px;
+            padding: 8px 10px;
             text-align: left;
             border-bottom: 1px solid #ddd;
+            line-height: 1.3;
         }
         th {
             background: #f1f2f6;
@@ -209,8 +217,8 @@
         }
         .footer {
             text-align: center;
-            margin-top: 40px;
-            padding: 20px;
+            margin-top: 30px;
+            padding: 16px;
             color: #7f8c8d;
             font-size: 14px;
             border-top: 1px solid #ecf0f1;
@@ -260,7 +268,7 @@
             </button>
         </div>
 
-                    <div id="results" class="results" style="display: none;">
+        <div id="results" class="results" style="display: none;">
             <h3>📈 篩選結果</h3>
             <div id="resultsContent"></div>
         </div>
@@ -273,6 +281,53 @@
     <script>
         let allProcessedData = null;
         let processedData = null;
+
+        // 日期格式化函數 - 修正為 YYYY/MM/DD 格式
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            
+            // 如果已經是 YYYY/MM/DD 格式，直接返回
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}\/\d{2}\/\d{2}$/)) {
+                return dateStr;
+            }
+            
+            // 如果是 YYYY/M/D 格式，補零
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}\/\d{1,2}\/\d{1,2}$/)) {
+                const parts = dateStr.split('/');
+                const year = parts[0];
+                const month = parts[1].padStart(2, '0');
+                const day = parts[2].padStart(2, '0');
+                return `${year}/${month}/${day}`;
+            }
+            
+            // 嘗試解析為日期物件
+            try {
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}/${month}/${day}`;
+                }
+            } catch (e) {
+                console.warn('無法解析日期:', dateStr);
+            }
+            
+            return dateStr;
+        }
+
+        // 資料排序函數 - 先依異常狀況排序，再依工時數值排序
+        function sortData(data) {
+            return data.sort((a, b) => {
+                // 第一優先：異常狀況排序（異常在前）
+                if (a.異常狀況 !== b.異常狀況) {
+                    return b.異常狀況 - a.異常狀況; // true(1) 在前，false(0) 在後
+                }
+                
+                // 第二優先：工時數值由少到多
+                return a.工時數值 - b.工時數值;
+            });
+        }
 
         // 檔案拖拽處理
         const uploadArea = document.getElementById('uploadArea');
@@ -350,15 +405,20 @@
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 const headers = jsonData[0];
-                const records = jsonData.slice(1).filter(row => row[3] && row[8] && row[9]);
+                console.log('Excel 標題行:', headers);
+                
+                // 根據實際的Excel檔案結構調整欄位索引
+                // 從分析結果看，欄位順序是：日期, 員工代號, 員工姓名, 製程, 設備代碼, 設備名稱, 工單單號, 生產批號, 產品編號, 產品名稱, 開始生產時間, 結束生產時間, 工時
+                const records = jsonData.slice(1).filter(row => row[2] && row[10] && row[11]); // 員工姓名, 開始生產時間, 結束生產時間
                 
                 const dailyStats = {};
 
                 records.forEach(row => {
-                    const employeeName = row[3];
-                    const workOrderNo = row[5];
-                    const startTime = row[8];
-                    const endTime = row[9];
+                    const dateValue = row[0]; // 日期欄位
+                    const employeeName = row[2]; // 員工姓名
+                    const workOrderNo = row[6]; // 工單單號
+                    const startTime = row[10]; // 開始生產時間
+                    const endTime = row[11]; // 結束生產時間
                     
                     let factory = '其他';
                     if (workOrderNo) {
@@ -371,7 +431,15 @@
                         }
                     }
                     
-                    const workDate = new Date(startTime).toLocaleDateString('zh-TW');
+                    // 使用日期欄位的值，如果是字串格式則直接使用，否則從開始時間提取日期
+                    let workDate;
+                    if (dateValue && typeof dateValue === 'string' && dateValue.includes('/')) {
+                        workDate = formatDate(dateValue);
+                    } else {
+                        // 從開始時間提取日期
+                        workDate = formatDate(new Date(startTime));
+                    }
+                    
                     const key = `${employeeName}_${workDate}_${factory}`;
                     
                     if (!dailyStats[key]) {
@@ -421,7 +489,7 @@
                         員工姓名: stat.員工姓名,
                         開始時間: startTimeStr,
                         結束時間: endTimeStr,
-                        工作時數: durationStr,
+                        工作期間: durationStr, // 改名為「工作期間」
                         工時數值: hoursDiff,
                         異常狀況: isAbnormal
                     });
@@ -439,6 +507,9 @@
         function setupFilters(data) {
             const uniqueDates = [...new Set(data.map(item => item.日期))].sort();
             const uniqueFactories = [...new Set(data.map(item => item.廠別))].sort();
+            
+            console.log('唯一日期:', uniqueDates);
+            console.log('唯一廠別:', uniqueFactories);
             
             const filterArea = document.getElementById('filterArea');
             filterArea.innerHTML = `
@@ -484,218 +555,139 @@
                 filteredData = filteredData.filter(item => item.廠別 === selectedFactory);
             }
             
-            filteredData.sort((a, b) => {
-                if (a.異常狀況 !== b.異常狀況) {
-                    return b.異常狀況 ? 1 : -1;
-                }
-                if (a.日期 !== b.日期) return a.日期.localeCompare(b.日期);
-                if (a.廠別 !== b.廠別) return a.廠別.localeCompare(b.廠別);
-                return a.工時數值 - b.工時數值;
-            });
+            // 套用排序：先依異常狀況，再依工時數值
+            filteredData = sortData(filteredData);
             
-            displayFilteredResults(filteredData, selectedDate, selectedFactory);
+            processedData = filteredData;
+            displayResults(filteredData);
         }
 
-        function displayFilteredResults(filteredData, selectedDate, selectedFactory) {
+        function displayResults(data) {
             const resultsDiv = document.getElementById('results');
             const resultsContent = document.getElementById('resultsContent');
-            resultsDiv.style.display = 'block';
             
-            const totalRecords = filteredData.length;
-            const uniqueEmployees = [...new Set(filteredData.map(item => item.員工姓名))].length;
-            const factories = [...new Set(filteredData.map(item => item.廠別))];
-            const abnormalRecords = filteredData.filter(item => item.異常狀況).length;
-            
-            let filterInfo = '';
-            if (selectedDate || selectedFactory) {
-                filterInfo = `
-                    <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
-                        <strong>📋 目前篩選條件：</strong>
-                        ${selectedDate ? `日期: ${selectedDate}` : ''}
-                        ${selectedDate && selectedFactory ? ' | ' : ''}
-                        ${selectedFactory ? `廠別: ${selectedFactory}` : ''}
-                        ${!selectedDate && !selectedFactory ? '顯示全部資料' : ''}
-                    </div>
-                `;
+            if (data.length === 0) {
+                resultsContent.innerHTML = '<div class="error">❌ 沒有符合篩選條件的資料</div>';
+                resultsDiv.style.display = 'block';
+                return;
             }
+
+            const totalEmployees = new Set(data.map(item => item.員工姓名)).size;
+            const abnormalCount = data.filter(item => item.異常狀況).length;
+            const normalCount = data.length - abnormalCount;
             
-            let abnormalWarning = '';
-            if (abnormalRecords > 0) {
-                abnormalWarning = `
-                    <div style="background: #fff5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e74c3c;">
-                        <strong>⚠️ 異常工時提醒：</strong>
-                        發現 ${abnormalRecords} 筆異常工時記錄（工時<8小時 或 >13小時），已標示紅色警示並優先顯示
-                    </div>
-                `;
-            }
-            
-            const statsHTML = `
+            const avgHours = data.reduce((sum, item) => sum + item.工時數值, 0) / data.length;
+
+            let tableHTML = `
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-number">${totalRecords}</div>
-                        <div class="stat-label">篩選後記錄數</div>
+                        <div class="stat-number">${data.length}</div>
+                        <div class="stat-label">總記錄數</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">${uniqueEmployees}</div>
+                        <div class="stat-number">${totalEmployees}</div>
                         <div class="stat-label">員工人數</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">${factories.length}</div>
-                        <div class="stat-label">涉及廠別數</div>
+                        <div class="stat-number">${normalCount}</div>
+                        <div class="stat-label">正常工時</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number" style="color: ${abnormalRecords > 0 ? '#e74c3c' : '#27ae60'}">${abnormalRecords}</div>
-                        <div class="stat-label">異常工時記錄</div>
+                        <div class="stat-number">${abnormalCount}</div>
+                        <div class="stat-label">異常工時</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${avgHours.toFixed(1)}</div>
+                        <div class="stat-label">平均工時</div>
                     </div>
                 </div>
-            `;
-            
-            let tableHTML = `
+                
                 <div class="sample-data">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h4>📊 工時明細表</h4>
-                        <span style="color: #7f8c8d;">共 ${totalRecords} 筆記錄 ${abnormalRecords > 0 ? `(${abnormalRecords} 筆異常)` : ''}</span>
-                    </div>
-                    <div style="overflow-x: auto;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px;">狀態</th>
-                                    <th>日期</th>
-                                    <th>廠別</th>
-                                    <th>員工姓名</th>
-                                    <th>開始時間</th>
-                                    <th>結束時間</th>
-                                    <th>工作時數</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                    <h4>📋 詳細資料 <small style="color: #7f8c8d;">(已排序：異常狀況優先，工作期間由少至多)</small></h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>廠別</th>
+                                <th>員工姓名</th>
+                                <th>開始時間</th>
+                                <th>結束時間</th>
+                                <th>工作期間</th>
+                                <th>狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
-            
-            filteredData.forEach(item => {
+
+            data.forEach(item => {
                 const rowClass = item.異常狀況 ? 'abnormal-row' : '';
                 const hoursClass = item.異常狀況 ? 'abnormal-hours' : 'normal-hours';
-                const statusIcon = item.異常狀況 ? '<span class="warning-icon">⚠️</span>' : '';
+                const statusIcon = item.異常狀況 ? '⚠️' : '✅';
                 
                 tableHTML += `
                     <tr class="${rowClass}">
-                        <td style="text-align: center; width: 50px;">${statusIcon}</td>
                         <td>${item.日期}</td>
                         <td>${item.廠別}</td>
                         <td>${item.員工姓名}</td>
                         <td>${item.開始時間}</td>
                         <td>${item.結束時間}</td>
-                        <td class="hours-cell ${hoursClass}">${statusIcon}${item.工作時數}</td>
+                        <td class="hours-cell ${hoursClass}">${item.工作期間}</td>
+                        <td>${statusIcon}</td>
                     </tr>
                 `;
             });
-            
-            tableHTML += `
-                            </tbody>
-                        </table>
-                    </div>
-                    <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-size: 14px;">
-                        <strong>📋 說明：</strong>
-                        <span style="color: #e74c3c;">⚠️ 異常工時</span>（<8小時 或 >13小時）會在工作時數前顯示警示圖示 |
-                        排序：異常優先 → 日期 → 廠別 → 工時少到多
-                    </div>
-                </div>
-            `;
 
-            // 產生CSV格式的資料顯示
-            let csvData = '狀態,日期,廠別,員工姓名,開始時間,結束時間,工作時數,異常說明\n';
-            filteredData.forEach(item => {
-                const status = item.異常狀況 ? '異常' : '正常';
-                let abnormalNote = '';
-                if (item.異常狀況) {
-                    if (item.工時數值 < 8) {
-                        abnormalNote = '工時不足8小時';
-                    } else if (item.工時數值 > 13) {
-                        abnormalNote = '工時超過13小時';
-                    }
-                }
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
                 
-                csvData += `${status},${item.日期},${item.廠別},${item.員工姓名},${item.開始時間},${item.結束時間},${item.工作時數},${abnormalNote}\n`;
-            });
-            
-            resultsContent.innerHTML = `
-                ${filterInfo}
-                ${abnormalWarning}
-                ${statsHTML}
-                ${tableHTML}
-                <div style="text-align: center; margin-top: 20px;">
+                <div style="margin-top: 20px; text-align: center;">
                     <button class="download-btn" onclick="downloadCSV()">
                         📥 下載 CSV 檔案
                     </button>
-                    <button class="download-btn" onclick="copyToClipboard()" style="background: #9b59b6;">
-                        📋 複製到剪貼簿
-                    </button>
-                </div>
-                <div class="sample-data">
-                    <h4>📄 CSV 資料預覽 (可直接複製貼到Excel)</h4>
-                    <div class="csv-output" id="csvOutput">${csvData}</div>
                 </div>
             `;
-            
-            processedData = filteredData;
-            window.csvData = csvData;
+
+            resultsContent.innerHTML = tableHTML;
+            resultsDiv.style.display = 'block';
         }
 
         function downloadCSV() {
-            if (!window.csvData) {
+            if (!processedData || processedData.length === 0) {
                 alert('沒有資料可下載');
                 return;
             }
-            
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('zh-TW').replace(/\//g, '');
-            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false }).replace(/:/g, '');
-            const filename = `每日作業員工時明細表_${dateStr}_${timeStr}.csv`;
-            
-            // 加入BOM以支援中文
+
+            const headers = ['日期', '廠別', '員工姓名', '開始時間', '結束時間', '工作期間', '異常狀況'];
+            const csvContent = [
+                headers.join(','),
+                ...processedData.map(row => [
+                    row.日期,
+                    row.廠別,
+                    row.員工姓名,
+                    row.開始時間,
+                    row.結束時間,
+                    row.工作期間,
+                    row.異常狀況 ? '異常' : '正常'
+                ].join(','))
+            ].join('\n');
+
             const BOM = '\uFEFF';
-            const blob = new Blob([BOM + window.csvData], { type: 'text/csv;charset=utf-8;' });
-            
+            const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
+            
             if (link.download !== undefined) {
                 const url = URL.createObjectURL(blob);
                 link.setAttribute('href', url);
-                link.setAttribute('download', filename);
+                link.setAttribute('download', '每日作業員工時明細表.csv');
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                showSuccessMessage(`✅ CSV檔案已下載: ${filename}`);
             }
-        }
-        
-        function copyToClipboard() {
-            if (!window.csvData) {
-                alert('沒有資料可複製');
-                return;
-            }
-            
-            navigator.clipboard.writeText(window.csvData).then(function() {
-                showSuccessMessage('✅ 資料已複製到剪貼簿，可直接貼到Excel中');
-            }, function(err) {
-                // 備用方法
-                const textArea = document.createElement('textarea');
-                textArea.value = window.csvData;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showSuccessMessage('✅ 資料已複製到剪貼簿，可直接貼到Excel中');
-            });
-        }
-        
-        function showSuccessMessage(message) {
-            const successMsg = document.createElement('div');
-            successMsg.className = 'success';
-            successMsg.innerHTML = message;
-            document.getElementById('resultsContent').insertBefore(successMsg, document.getElementById('resultsContent').firstChild);
-            setTimeout(() => successMsg.remove(), 5000);
         }
     </script>
 </body>
 </html>
+
