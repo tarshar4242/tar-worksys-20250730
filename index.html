@@ -273,6 +273,27 @@
             <div id="resultsContent"></div>
         </div>
         
+        <div class="results" style="margin-top: 20px;">
+            <h3>📋 資料處理排除規則說明</h3>
+            <div style="background: white; border-radius: 10px; padding: 16px; line-height: 1.5;">
+                <p><strong>系統會自動排除以下類型的記錄：</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li><strong>缺少必要資料：</strong>員工姓名、開始生產時間、結束生產時間任一欄位為空白的記錄</li>
+                    <li><strong>時間差過短：</strong>「結束時間」減去「開始時間」在10秒內的記錄（例如：時間差為5秒的記錄將被完全忽略，不會出現在任何統計中）</li>
+                </ul>
+                <p><strong>資料合併規則：</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>同一員工在同一天同一廠別的多筆記錄會合併為一筆</li>
+                    <li>開始時間取最早時間，結束時間取最晚時間</li>
+                    <li>設備欄位會收集所有使用的設備代碼，用分號(;)分隔</li>
+                </ul>
+                <p><strong>異常工時判定：</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>工作時間少於8小時或超過13小時視為異常</li>
+                </ul>
+            </div>
+        </div>
+        
         <div class="footer">
             <span class="sparkle">✨</span>Learn with Tarshar — 2025
         </div>
@@ -409,7 +430,17 @@
                 
                 // 根據實際的Excel檔案結構調整欄位索引
                 // 從分析結果看，欄位順序是：日期, 員工代號, 員工姓名, 製程, 設備代碼, 設備名稱, 工單單號, 生產批號, 產品編號, 產品名稱, 開始生產時間, 結束生產時間, 工時
-                const records = jsonData.slice(1).filter(row => row[2] && row[10] && row[11]); // 員工姓名, 開始生產時間, 結束生產時間
+                const records = jsonData.slice(1).filter(row => {
+                    // 基本資料檢查：員工姓名, 開始生產時間, 結束生產時間
+                    if (!row[2] || !row[10] || !row[11]) return false;
+                    
+                    // 排除條件：忽略結束時間與開始時間差距在10秒內的記錄
+                    const startTime = new Date(row[10]);
+                    const endTime = new Date(row[11]);
+                    const timeDiffSeconds = (endTime - startTime) / 1000;
+                    
+                    return timeDiffSeconds > 10; // 只保留時間差大於10秒的記錄
+                });
                 
                 const dailyStats = {};
 
